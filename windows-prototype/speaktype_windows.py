@@ -91,7 +91,7 @@ class SpeakTypeWindowsPrototype:
                     self._stream = None
             keyboard.unhook_all()
 
-    def _audio_callback(self, indata, frames, timestamp, status) -> None:
+    def _audio_callback(self, indata, _frames, _timestamp, status) -> None:
         if status:
             print(f"Audio status: {status}")
         with self._recording_lock:
