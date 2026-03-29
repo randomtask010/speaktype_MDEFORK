@@ -29,6 +29,8 @@ dist/
 *.swp
 *.tmp
 *~
+__pycache__/
+*.py[cod]
 
 # Cursor
 .cursor/
