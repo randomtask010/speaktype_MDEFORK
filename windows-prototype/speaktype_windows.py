@@ -35,6 +35,7 @@ DEFAULT_HOTKEY = "f8"
 DEFAULT_MODEL_SIZE = "base"
 DEFAULT_MODEL_COMPUTE_TYPE = "int8"
 DEFAULT_MIN_DURATION_S = 0.2
+DEFAULT_BEAM_SIZE = 5
 
 
 @dataclass(frozen=True)
@@ -43,10 +44,13 @@ class AppConfig:
     mode: str = "hold"
     model_size: str = DEFAULT_MODEL_SIZE
     model_compute_type: str = DEFAULT_MODEL_COMPUTE_TYPE
+    beam_size: int = DEFAULT_BEAM_SIZE
     language: Optional[str] = "en"
     input_device: Optional[int] = None
     paste_mode: str = "ctrlv"
     min_duration_s: float = DEFAULT_MIN_DURATION_S
+    initial_prompt: Optional[str] = None
+    hotwords: Optional[str] = None
 
 
 @dataclass
@@ -195,10 +199,12 @@ class SpeakTypeWindowsPrototype:
 
             segments, _ = self._model.transcribe(
                 str(wav_path),
-                beam_size=1,
+                beam_size=self._config.beam_size,
                 vad_filter=True,
                 language=self._config.language,
                 task="transcribe",
+                initial_prompt=self._config.initial_prompt,
+                hotwords=self._config.hotwords,
             )
             text = " ".join(segment.text.strip() for segment in segments).strip()
             return " ".join(text.split())
@@ -274,6 +280,12 @@ def _parse_args() -> argparse.Namespace:
         help="Whisper compute type (e.g., int8, float16)",
     )
     parser.add_argument(
+        "--beam-size",
+        type=int,
+        default=DEFAULT_BEAM_SIZE,
+        help="Beam size for decoding accuracy vs speed (default: 5)",
+    )
+    parser.add_argument(
         "--language",
         default="en",
         help="Language code (use 'auto' for auto-detection)",
@@ -301,6 +313,16 @@ def _parse_args() -> argparse.Namespace:
         default=DEFAULT_MIN_DURATION_S,
         help="Minimum recording duration in seconds",
     )
+    parser.add_argument(
+        "--initial-prompt",
+        default=None,
+        help="Optional style or vocabulary prompt to prime transcription",
+    )
+    parser.add_argument(
+        "--hotwords",
+        default=None,
+        help="Optional comma-separated hint words or phrases for proper nouns and acronyms",
+    )
     return parser.parse_args()
 
 
@@ -316,10 +338,13 @@ def main() -> None:
         mode=args.mode,
         model_size=args.model_size,
         model_compute_type=args.compute_type,
+        beam_size=args.beam_size,
         language=language,
         input_device=args.input_device,
         paste_mode=args.paste_mode,
         min_duration_s=args.min_duration,
+        initial_prompt=args.initial_prompt,
+        hotwords=args.hotwords,
     )
     app = SpeakTypeWindowsPrototype(config)
     app.run()

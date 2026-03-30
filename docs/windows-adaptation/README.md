@@ -1,215 +1,278 @@
-# SpeakType Windows Adaptation Plan
+# SpeakType Windows Transition Plan
 
-## 1) Objective
-Adapt SpeakType from a macOS-only desktop app into a Windows-capable app while preserving core behavior:
-- Push-to-talk global hotkey recording
-- Local/offline transcription
-- Instant insertion into the active app
-- Menu/tray-driven control flow
-- Model download and local model management
+This document is the canonical Windows strategy and execution guide for this fork.
 
-## 2) Current-State Assessment (from this repo)
-The current implementation is tightly coupled to Apple platforms:
-- **Build/toolchain**: Xcode project, `xcodebuild`, macOS packaging/signing/notarization scripts.
-- **UI/app lifecycle**: SwiftUI app with `NSApplicationDelegateAdaptor`, `MenuBarExtra`, AppKit window control.
-- **macOS system APIs**:
-  - Accessibility trust checks: `AXIsProcessTrusted*`
-  - Input/shortcut hooks: `NSEvent`, `CGEventTap`, `CGEvent`
-  - Clipboard/paste: `NSPasteboard` + synthetic Cmd+V
-  - Windowing and shell actions: `NSWindow`, `NSPanel`, `NSWorkspace`, `NSAlert`
-- **Audio stack**: AVFoundation capture and playback.
-- **ML runtime**: WhisperKit/CoreML-first assumptions.
+- The production app in this repository is still the macOS SwiftUI/AppKit implementation.
+- The Windows Python MVP in [`windows-prototype/`](../../windows-prototype/README.md) exists only as a transitional tester bootstrap.
+- All Windows-port decisions, milestones, and documentation updates must align with this file.
 
-## 3) Target Cross-Platform Strategy
-Use a **shared core + platform adapters** architecture.
+## Objective and End-State
 
-### 3.1 Core (shared)
-Keep or extract into shared modules:
-- Domain models (`AIModel`, settings, history, transcription state)
-- Business logic (download workflow, transcription orchestration, trial/license policy)
-- Persistence and app settings contracts
-- Logging contracts
+Port SpeakType from a macOS-first desktop app to a Windows-capable product without regressing the core dictation workflow:
 
-### 3.2 Platform adapters
-Introduce interfaces and two concrete implementations:
-- **macOSAdapter** (existing behavior)
-- **WindowsAdapter** (new)
+- push-to-talk or toggle recording
+- local, offline transcription
+- insertion into the active app with documented fallbacks
+- tray-driven access to controls and status
+- local model download and management
+- onboarding, history, settings, and update flow parity
 
-Adapter responsibilities:
-- Global hotkey registration and key state tracking
-- Microphone permission checks/prompts
-- Accessibility/input-injection capability checks
-- Clipboard operations and active-app paste execution
-- App lifecycle hooks, tray icon behavior, notifications, URL/open actions
-- OS-specific file paths for models/cache/history
+The target Windows product is a native C# desktop app with a shared cross-platform core and platform adapters.
 
-## 4) Dependency and API Migration Plan
-Replace direct macOS framework usage behind abstractions.
+## Current-State Gap Analysis
 
-| Capability | Current (macOS) | Windows Target |
-|---|---|---|
-| Global hotkeys | `NSEvent`, `CGEventTap` | Win32 `RegisterHotKey` (or low-level keyboard hook when required) |
-| Text insertion | `CGEvent` Cmd+V + Accessibility | Clipboard + synthetic Ctrl+V using `SendInput` (or UI Automation fallback) |
-| Permission checks | Accessibility + AVFoundation authorization | Microphone capability checks, UAC-sensitive input simulation checks |
-| Clipboard | `NSPasteboard` | Win32 clipboard API (`OpenClipboard`, `SetClipboardData`) |
-| Tray/menu | `MenuBarExtra` / AppKit | System tray (`Shell_NotifyIcon`) via chosen UI framework |
-| Launch URLs/files | `NSWorkspace` | `ShellExecute`/`Process.Start` equivalent |
-| Audio capture | AVFoundation | WASAPI/MediaCapture abstraction |
-| Whisper runtime | WhisperKit/CoreML | ONNX Runtime + whisper.cpp backend (evaluate and choose) |
+The current app is tightly coupled to Apple frameworks and build tooling:
 
-## 5) Architecture Refactor Workstreams
+- Build and release are driven by Xcode, `xcodebuild`, DMG packaging, notarization, and macOS-only scripts.
+- App lifecycle depends on SwiftUI scenes, `NSApplicationDelegateAdaptor`, `MenuBarExtra`, and AppKit window management.
+- Hotkey handling relies on `NSEvent`, `CGEventTap`, and Fn-specific event suppression.
+- Clipboard and insertion rely on `NSPasteboard`, `CGEvent`, and Accessibility trust.
+- Audio capture and playback rely on AVFoundation.
+- Transcription is implemented through WhisperKit with CoreML-oriented assumptions.
 
-### Workstream A: Platform Abstraction Layer
-1. Identify all direct AppKit/Cocoa/ApplicationServices usage.
-2. Define protocol boundaries for:
-   - `HotkeyService`
-   - `ClipboardService`
-   - `PermissionService`
-   - `WindowOverlayService`
-   - `SystemIntegrationService` (open URL/file, app activation)
-3. Move current macOS implementations behind these protocols.
-4. Ensure no feature module calls macOS APIs directly.
+Windows support in-repo today is limited to the Python CLI prototype:
 
-### Workstream B: App Shell Strategy
-Choose one of:
-1. **Swift cross-platform shell** if feasible for Windows delivery requirements.
-2. **Native Windows shell + shared core** (recommended if tray/hotkey/input reliability is priority).
+- global hotkey via `keyboard`
+- microphone capture via `sounddevice`
+- local transcription via `faster-whisper`
+- clipboard copy and attempted `Ctrl+V`
 
-Decision criteria:
-- Reliability for global hotkeys and foreground paste
-- Tray/overlay UX parity
-- Team expertise and maintenance burden
-- Packaging/signing simplicity on Windows
+That prototype is useful for user-testing continuity, but it is not the end-state architecture.
 
-### Workstream C: Audio + Transcription Runtime
-1. Decouple transcription engine from WhisperKit-specific types.
-2. Introduce `TranscriptionEngine` interface.
-3. Provide:
-   - macOS WhisperKit adapter
-   - Windows engine adapter (ONNX/whisper.cpp)
-4. Standardize model metadata, storage layout, checksum validation.
-5. Add migration logic for model location differences by OS.
+## Locked Architecture Decisions
 
-### Workstream D: UX/Behavior Parity
-1. Recreate mini recorder overlay and status states.
-2. Recreate onboarding for permissions and first-model setup.
-3. Preserve push-to-talk and toggle modes.
-4. Maintain history/statistics/settings behavior with platform-aware options.
+The following choices are locked for Windows-port work in this fork:
 
-### Workstream E: Build, Packaging, and Distribution
-1. Add Windows build pipeline (Debug + Release).
-2. Add Windows installer flow (MSIX or signed installer).
-3. Add release automation equivalent to current macOS release scripts.
-4. Add update strategy for Windows (in-app updater or installer-based updates).
+- Windows shell: native C# desktop shell.
+- Native host layer: WPF is the primary Windows UI host for the first production port because it is mature for tray, hotkey, window, and input-injection integration.
+- Shared architecture: shared core plus platform adapters.
+- Transitional Windows path: keep the Python MVP only until the native shell proves core-flow parity.
+- Packaging progression: portable Windows build first for internal and tester validation; signed installer and optional MSIX follow after workflow stability.
+- Hotkey strategy: Win32-native registration or hook path, not a web-shell abstraction.
+- Text insertion strategy: clipboard-first with synthetic paste, plus documented fallback modes for blocked apps.
+- Audio strategy: Windows-native capture abstraction, not direct reuse of AVFoundation assumptions.
+- Windows transcription runtime: non-CoreML backend. The Python MVP may validate runtime choices, but it is not the long-term app shell.
 
-### Workstream F: Test and Quality Strategy
-1. Extend unit tests to target platform-agnostic core.
-2. Add adapter contract tests per platform.
-3. Add smoke tests for:
-   - global hotkey capture
-   - recording start/stop
-   - transcription completion
-   - clipboard paste into common apps (Notepad, browser text fields, Office app)
-4. Add regression suite for model download/cancel/retry and corrupted model recovery.
+## Shared-Core Extraction Map
 
-## 6) Incremental Delivery Phases
+The shared core should contain behavior that is product-specific but not OS-shell-specific:
 
-### Phase 0: Discovery & Design
-- Finalize shell/runtime choices.
-- Produce API boundary spec and dependency decision record.
-- Define parity requirements and non-goals.
+- transcription orchestration and recording-state transitions
+- model metadata, selection rules, checksum policy, and local storage conventions
+- settings schema and persistence contracts
+- history storage contracts and statistics derivation
+- licensing and trial policy
+- logging contracts and support diagnostics
 
-### Phase 1: Refactor for Separation (macOS still primary)
-- Introduce interfaces and macOS adapters.
-- Remove direct platform calls from core logic.
-- Keep behavior unchanged on macOS.
+The following existing app areas are expected to inform core extraction:
 
-### Phase 2: Windows MVP (functional parity for core flow)
-- Global hotkey
-- Audio capture
-- Local transcription
-- Clipboard insert/paste
-- Basic tray control + settings + model download
+- models and settings
+- history and statistics calculations
+- model download workflow
+- transcription normalization and orchestration
 
-### Phase 3: Hardening and UX parity
-- Overlay polish, onboarding parity, update flow, error recovery.
-- Performance tuning and startup latency optimization.
+The following must remain behind platform adapters:
 
-### Phase 4: Release Readiness
-- Signed builds
-- Installer validation
-- Cross-version upgrade tests
-- Support docs and troubleshooting guide
+- hotkey monitoring
+- permission prompting and trust checks
+- clipboard access and insertion
+- tray/menu shell
+- overlay windows and focus behavior
+- URL, file, and shell actions
+- OS-specific storage roots and app lifecycle hooks
 
-## 7) Risk Register and Mitigations
-- **Risk: Input injection blocked by policy/app context**  
-  Mitigation: layered fallbacks (clipboard-only mode, UI Automation fallback, clear user guidance).
+## Required Cross-Platform Contracts
 
-- **Risk: Global hotkey collisions / unreliable keyboard hooks**  
-  Mitigation: configurable shortcuts, conflict detection, robust hook lifecycle management.
+These interfaces are required and must be explicitly introduced during the refactor.
 
-- **Risk: Whisper runtime performance gaps on low-end Windows devices**  
-  Mitigation: model tier recommendations, RAM checks, dynamic defaults, benchmark gate before release.
+| Contract | Responsibility | Current macOS source | Windows target |
+|---|---|---|---|
+| `TranscriptionEngine` | Load models, transcribe files/chunks, expose runtime capability/errors | WhisperKit-backed service | Windows runtime adapter backed by a non-CoreML engine |
+| `HotkeyService` | Register global hotkeys, track press/release state, expose conflicts/errors | `NSEvent` and `CGEventTap` handling | Win32 registration/hook implementation |
+| `AudioCaptureService` | Start/stop recording, enumerate devices, stream or persist audio | AVFoundation recording services | Windows-native audio capture abstraction |
+| `ClipboardInsertionService` | Copy transcript, attempt insertion, expose fallback mode | `NSPasteboard` plus synthetic paste | Win32 clipboard plus `Ctrl+V` simulation and fallback handling |
+| `PermissionService` | Report and request microphone/input-injection capability | AVFoundation and Accessibility trust checks | Windows microphone and input-simulation capability checks |
+| `WindowOverlayService` | Show recorder overlay, status changes, and focus-safe dismissal | AppKit mini-recorder window controller | Native WPF overlay window management |
+| `SystemIntegrationService` | Open files/URLs, launch on login, notifications, app activation | `NSWorkspace` and AppKit integration | Windows shell integration |
+| `ModelRepository` | Resolve model catalog, install state, download state, storage roots | WhisperKit model download workflow | Shared catalog plus Windows-specific storage/download adapter |
+| `SettingsStore` | Persist app settings and feature flags | `UserDefaults`-backed settings | Windows-backed settings persistence |
+| `HistoryStore` | Persist transcripts, audio references, and derived stats | Current history persistence service | Shared history contract with Windows storage backend |
 
-- **Risk: Divergent behavior across platform code paths**  
-  Mitigation: shared core contracts + cross-platform behavioral tests + parity checklist.
+## Windows Shell Responsibilities
 
-- **Risk: Installer/update trust issues (AV false positives, signing mistakes)**  
-  Mitigation: code signing in CI, reputation-building release cadence, staged rollout.
+The native Windows shell owns all user-facing platform behavior:
 
-## 8) Definition of Done (Windows adaptation)
-A Windows release is considered complete when:
-1. User can install/uninstall cleanly.
-2. App can run at login (if enabled), live in tray, and open settings/dashboard.
-3. Hotkey reliably starts/stops recording.
-4. Speech transcribes locally with downloadable models.
-5. Result text inserts into common target apps with documented fallback behavior.
-6. Crash/error telemetry/logging is available for support.
-7. CI builds and tests pass for both macOS and Windows targets.
-8. User documentation includes Windows setup, permissions, troubleshooting, and known limitations.
+- tray icon and quick actions
+- onboarding flow and permissions guidance
+- dashboard/settings/history UI
+- hotkey configuration UI
+- recorder overlay and status feedback
+- active-app insertion behavior and fallback messaging
+- update prompts and release-channel display
 
-## 9) Adaptation Backlog Status (execution)
+The Windows shell must not re-implement product rules already defined in the shared core.
 
-Status legend:
-- ✅ Completed
-- 🔄 In progress
-- ⏭️ Next
-- 🧪 User-testing prep
+## Migration Phases and Exit Criteria
 
-### 9.1 Platform strategy
-1. 🔄 Approve target Windows shell and long-term transcription backend.
-2. ⏭️ Confirm adapter boundaries for hotkey, clipboard/paste, permission, and system integration services.
+### Phase 0: Canonical strategy and repo alignment
 
-### 9.2 Current MVP delivery
-1. ✅ Minimal Windows prototype exists for hotkey + recording + transcription + paste.
-2. ✅ Prototype supports hold and toggle modes, device selection, language override/auto, and clipboard-only fallback.
-3. 🔄 Harden insertion behavior and fallback guidance for apps that block synthetic paste.
+Deliverables:
 
-### 9.3 Core adaptation work
-1. ⏭️ Implement platform abstraction interfaces in current codebase.
-2. ⏭️ Migrate existing macOS services behind adapter layer with no behavior change.
-3. ⏭️ Introduce cross-platform transcription engine contract and Windows implementation path.
+- this document becomes the single source of truth
+- root docs point here consistently
+- the Python MVP is documented as transitional, not final
 
-### 9.4 Build/release and validation
-1. ⏭️ Establish Windows CI build and artifact publishing.
-2. ⏭️ Add repeatable Windows smoke tests for key workflows (Notepad, browser textarea, Office app).
-3. 🧪 Publish test runbook and issue template for user testing feedback capture.
+Exit criteria:
 
-## 10) Windows User Testing Readiness (post-PR target)
+- no repo doc implies the Python CLI is the long-term Windows product
+- no repo doc presents an alternative Windows architecture
 
-This fork is targeting post-PR Windows user testing of the MVP flow with clear support guidance.
+### Phase 1: Adapter seams in the macOS app
 
-### Ready now
-- Working prototype CLI flow in `windows-prototype/`.
-- Local transcription (faster-whisper), global hotkey capture, clipboard + paste attempt.
-- Validation checklist and runtime options documented.
+Deliverables:
 
-### Must be true before test invitation
-1. A single canonical support guide exists and matches current CLI/runtime flags.
-2. Known limitations are explicit (admin requirements, app-specific paste blocking, no tray UI yet).
-3. Testers can collect and share reproducible bug reports (input device, mode, target app, error text).
-4. Backlog priorities for blocking issues are clearly marked.
+- isolate direct AppKit, Cocoa, ApplicationServices, and AVFoundation dependencies behind the required contracts
+- keep macOS behavior unchanged
 
-### Go/No-Go gate for user testing
-- **Go**: setup succeeds on clean Windows 10/11 machine, hold/toggle flows transcribe, clipboard fallback works.
-- **No-Go**: cannot reliably complete basic record/transcribe/copy flow in common apps.
+Exit criteria:
+
+- feature modules no longer call platform APIs directly
+- macOS build and tests continue to pass
+
+### Phase 2: Shared-core extraction
+
+Deliverables:
+
+- define a platform-neutral core module for settings, history, transcription orchestration, model metadata, and state transitions
+- move persistence and runtime contracts out of the shell layer
+
+Exit criteria:
+
+- macOS uses the shared core through macOS adapters
+- core logic is testable without AppKit or AVFoundation
+
+### Phase 3: Native Windows shell implementation
+
+Deliverables:
+
+- WPF shell for tray, settings, onboarding, history, and overlay
+- Win32-backed hotkey, clipboard, insertion, permission, and system-integration adapters
+- Windows-native audio capture adapter
+- Windows transcription engine adapter
+
+Exit criteria:
+
+- Windows can complete record, transcribe, copy, and paste in common target apps
+- toggle and hold modes behave consistently with macOS
+
+### Phase 4: Parity hardening and tester migration
+
+Deliverables:
+
+- replace Python MVP as the primary validation path
+- preserve the Python prototype only as a fallback tool during limited overlap
+- document known app-specific insertion limitations and fallback behavior
+
+Exit criteria:
+
+- native Windows shell is the primary documented test target
+- parity checklist passes for onboarding, recording, transcription, history, and settings
+
+### Phase 5: Packaging, signing, CI, and release readiness
+
+Deliverables:
+
+- portable Windows build for internal and tester distribution
+- signed installer flow after portable-build stabilization
+- Windows CI build and smoke-test coverage
+- support and release docs updated for Windows lifecycle
+
+Exit criteria:
+
+- Windows release artifacts can be produced repeatably
+- CI validates key Windows flows
+- docs clearly differentiate portable, installer, and future MSIX paths
+
+## Parity Matrix
+
+| Capability | macOS status | Windows target | Current Windows status |
+|---|---|---|---|
+| Global hotkey dictation | Shipping | Native Win32-backed hotkey service | Python MVP only |
+| Hold and toggle recording | Shipping | Same behavior through shared state model | Python MVP supports both |
+| Local transcription | Shipping via WhisperKit | Native Windows runtime through `TranscriptionEngine` | Python MVP supports local transcription |
+| Clipboard copy and active-app insertion | Shipping | Clipboard-first insertion with fallback modes | Python MVP supports copy plus attempted paste |
+| Tray-driven control flow | Shipping | Native WPF tray shell | Not implemented |
+| Overlay/status window | Shipping | Native WPF overlay | Not implemented |
+| Settings UI | Shipping | Native Windows settings UI backed by shared contracts | Not implemented |
+| History and stats UI | Shipping | Native Windows history/stats UI backed by shared stores | Not implemented |
+| Model management UI | Shipping | Native Windows model-management UI backed by shared repository | Not implemented |
+| Update flow | Shipping for macOS DMG releases | Windows portable then installer update strategy | Not implemented |
+| Release automation | Shipping for macOS | Windows CI plus packaging pipeline | Not implemented |
+
+## Risks and Mitigations
+
+- Input injection may be blocked by target app context or security boundary.
+  - Mitigation: clipboard-first behavior, clear fallback mode, app-specific guidance, and documented repro capture.
+- Global hotkey behavior may conflict with system or app shortcuts.
+  - Mitigation: configurable hotkeys, conflict detection, and robust hook lifecycle management.
+- Windows runtime performance may vary widely by CPU and RAM.
+  - Mitigation: model-tier recommendations, benchmark gate, conservative defaults, and tester hardware capture.
+- Shared-core extraction may destabilize the shipping macOS app.
+  - Mitigation: phase the work behind adapters first and keep macOS behavior unchanged until contracts are proven.
+- Windows packaging and signing may lag functional parity.
+  - Mitigation: portable build first, then signed installer, then optional MSIX.
+
+## Testing and Validation Strategy
+
+### Core validation
+
+- unit tests for shared orchestration, normalization, settings rules, history calculations, and model-state transitions
+- adapter contract tests for macOS and Windows implementations
+
+### Windows smoke validation
+
+Run repeatable smoke tests for:
+
+- hotkey registration and cancellation
+- hold mode and toggle mode
+- microphone selection
+- transcription completion
+- clipboard copy
+- paste into Notepad
+- paste into a browser text field
+- fallback behavior when synthetic paste is blocked
+
+### Acceptance criteria for Windows readiness
+
+Windows is ready to replace the Python MVP as the primary test target when:
+
+1. setup succeeds on a clean Windows 10 or 11 machine
+2. record, transcribe, and copy work reliably
+3. paste works in common apps with documented fallback behavior where blocked
+4. settings and history persist correctly
+5. crashes and support logs are collectable
+
+## Packaging and Release Progression
+
+Packaging order is fixed:
+
+1. portable Windows build for internal validation and tester pilots
+2. signed installer after the portable build is stable
+3. optional MSIX only after installer and update workflow maturity
+
+The current repository release automation remains macOS-only until Windows packaging work is explicitly added.
+
+## Ownership and Update Rules
+
+- This document is the source of truth for Windows architecture, sequencing, and status.
+- [`README.md`](../../README.md) should summarize Windows status, not redefine strategy.
+- [`windows-prototype/README.md`](../../windows-prototype/README.md) should describe only how to run and validate the transitional MVP.
+- Any change to Windows architecture, packaging order, prototype role, or parity target must update this document in the same change.
+- Do not introduce parallel Windows approaches in code or docs without updating this plan and the parity matrix.
+
+## Immediate Next Steps
+
+1. Introduce the required platform contracts in the current app without changing macOS behavior.
+2. Extract shared transcription, settings, model, and history logic behind those contracts.
+3. Stand up the native WPF Windows shell and Win32-backed adapters.
+4. Keep the Python MVP available only until the native shell completes core-flow parity.

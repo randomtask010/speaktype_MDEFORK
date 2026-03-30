@@ -4,7 +4,7 @@
 
 ![SpeakType Icon](speaktype/Assets.xcassets/AppIcon.appiconset/icon_256x256.png)
 
-**Fast, Offline Voice-to-Text — macOS App + Windows Adaptation Fork**
+**Fast, Offline Voice-to-Text — macOS App + Windows Porting Fork**
 
 ![SpeakType app screenshot](image.png)
 [![Download](https://img.shields.io/badge/Download-SpeakType.dmg-blueviolet?logo=apple&logoColor=white)](https://github.com/karansinghgit/speaktype/releases/latest)
@@ -12,7 +12,7 @@
 [![Platform](https://img.shields.io/badge/Platform-macOS%20stable%20%7C%20Windows%20adaptation-blue)](docs/windows-adaptation/README.md)
 [![License](https://img.shields.io/badge/License-MIT-red)](LICENSE)
 
-*Press a hotkey, speak, and instantly paste text anywhere — with active Windows adaptation work in this fork.*
+*Press a hotkey, speak, and instantly paste text anywhere — with an active Windows transition plan in this fork.*
 
 </div>
 
@@ -20,7 +20,7 @@
 
 ## What is SpeakType?
 
-SpeakType is a **privacy-first, offline voice dictation tool**. The upstream app is macOS-first, and this fork is actively adapting the core dictation workflow for Windows user testing while keeping local/offline transcription as the baseline requirement.
+SpeakType is a **privacy-first, offline voice dictation tool**. The upstream app is macOS-first, and this fork is focused on porting the core dictation workflow to Windows while keeping local, offline transcription as the baseline requirement.
 
 - **Privacy First** - Zero data leaves your Mac
 - **Lightning Fast** - Optimized for Apple Silicon
@@ -30,9 +30,10 @@ SpeakType is a **privacy-first, offline voice dictation tool**. The upstream app
 ### Fork status: Windows adaptation
 
 - macOS app remains the primary production implementation.
-- Windows adaptation work and backlog live in [`docs/windows-adaptation/README.md`](docs/windows-adaptation/README.md).
-- Runnable Windows MVP prototype lives in [`windows-prototype/`](windows-prototype/README.md).
-- Support and user-testing guidance for Windows is included in the Windows docs.
+- The canonical Windows transition plan lives in [`docs/windows-adaptation/README.md`](docs/windows-adaptation/README.md).
+- The end-state Windows target is a native C# desktop shell with a shared cross-platform core.
+- The runnable Windows Python MVP in [`windows-prototype/`](windows-prototype/README.md) is temporary tester tooling, not the long-term Windows product shell.
+- Repo-level contributor and agent guidance for Windows-port work lives in [`AGENTS.md`](AGENTS.md).
 
 ---
 
@@ -57,12 +58,15 @@ Press `fn` to start dictating.
 
 ### Windows adaptation (this fork)
 
-For Windows setup, runtime options, troubleshooting, and user-testing checklist:
+For Windows architecture, migration phases, portability decisions, and release direction:
 
 - [`docs/windows-adaptation/README.md`](docs/windows-adaptation/README.md)
+
+For transitional Windows tester setup, runtime options, troubleshooting, and user-testing checklist:
+
 - [`windows-prototype/README.md`](windows-prototype/README.md)
 
-### Build from Source
+### Build from Source (macOS app)
 
 ```bash
 git clone https://github.com/karansinghgit/speaktype.git
@@ -105,7 +109,8 @@ So the first transcription will appear ultra slow, but it will go back to instan
 ### Windows adaptation development notes
 
 - The Makefile targets in this repository are macOS/Xcode-oriented.
-- Windows adaptation currently progresses through the Python MVP in `windows-prototype/` and the backlog in `docs/windows-adaptation/README.md`.
+- Windows porting strategy and sequencing are defined in `docs/windows-adaptation/README.md`.
+- Windows testing currently progresses through the Python MVP in `windows-prototype/` until the native Windows shell is ready.
 
 ### Project Structure
 

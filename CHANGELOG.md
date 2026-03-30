@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
 ## [Unreleased]
+- Embedded a canonical Windows transition plan in `docs/windows-adaptation/README.md` with locked architecture, migration phases, parity targets, and packaging order.
+- Added repo-root `AGENTS.md` to make the Windows transition plan the required source of truth for contributors and agents.
+- Updated root and Windows prototype documentation to distinguish the native Windows target from the temporary Python tester bootstrap.
+- Clarified release documentation so current automation is explicitly macOS-only and Windows packaging is staged separately.
 - Updated project messaging to reflect this fork’s Windows adaptation focus alongside macOS.
 - Expanded Windows adaptation documentation with explicit backlog status markers (completed/in-progress/next/testing prep).
 - Added Windows user-testing readiness criteria and go/no-go gate to adaptation docs.

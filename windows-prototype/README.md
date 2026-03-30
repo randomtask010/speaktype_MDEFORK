@@ -1,6 +1,16 @@
 # SpeakType Windows Prototype
 
-This folder contains a **workable Windows MVP prototype** for SpeakType:
+This folder contains the **transitional Windows tester bootstrap** for SpeakType.
+
+It is useful for validating Windows dictation workflows while the repo ports toward a native Windows desktop app. The canonical Windows strategy, architecture, and migration phases live in [`docs/windows-adaptation/README.md`](../docs/windows-adaptation/README.md).
+
+This prototype is intentionally temporary:
+
+- it supports near-term Windows user testing
+- it helps validate runtime, insertion, and device behavior on Windows machines
+- it is **not** the long-term Windows product shell
+
+Current MVP behavior:
 
 - Hold **F8** to record
 - Release **F8** to transcribe locally
@@ -12,6 +22,12 @@ This folder contains a **workable Windows MVP prototype** for SpeakType:
 - Microphone capture (`sounddevice`)
 - Local Whisper transcription (`faster-whisper`)
 - Clipboard + paste (`pyperclip` + synthetic `Ctrl+V`)
+
+## How this fits into the Windows roadmap
+
+- The end-state Windows target for this fork is a native C# desktop app with a shared cross-platform core.
+- This Python prototype remains in-repo only to preserve tester continuity during the refactor.
+- Once the native Windows shell reaches record/transcribe/copy/paste parity, this prototype should stop being the primary documented Windows path.
 
 ## Requirements
 
@@ -67,6 +83,12 @@ Language and model overrides:
 python speaktype_windows.py --language en --model-size base --compute-type int8
 ```
 
+Accuracy-first decoding:
+
+```powershell
+python speaktype_windows.py --language en --beam-size 5
+```
+
 Enable auto language detection:
 
 ```powershell
@@ -79,6 +101,12 @@ Clipboard-only fallback (no synthetic paste):
 python speaktype_windows.py --paste-mode clipboard
 ```
 
+Bias proper nouns and Australian finance terms:
+
+```powershell
+python speaktype_windows.py --language en --beam-size 5 --hotwords "Commonwealth Bank,SMSF,trustee" --initial-prompt "Australian English dictation about banking and SMSF trustee account details."
+```
+
 ## Suggested Windows validation checklist
 
 - Verify `--list-devices` shows expected microphone devices.
@@ -87,6 +115,8 @@ python speaktype_windows.py --paste-mode clipboard
 - Verify `--input-device` uses the selected microphone.
 - Verify `--paste-mode clipboard` copies transcript even when paste injection is blocked.
 - Verify `--language auto` and fixed language mode both produce expected transcripts.
+- Verify `--beam-size 5` improves transcription quality on proper nouns compared with faster defaults.
+- Verify `--hotwords` and `--initial-prompt` help with domain terms such as bank names, acronyms, and account terminology.
 
 ## Windows user-testing runbook (post-PR)
 
@@ -124,8 +154,9 @@ Use this flow when validating or reporting issues during Windows testing:
 
 - Default language remains `en`; can now be overridden at runtime.
 - Default microphone device is used unless `--input-device` is provided.
-- No tray UI or settings UI yet.
+- No tray UI or settings UI yet because this is not the final Windows shell.
 - Model defaults to `base` with `int8` compute for broad CPU compatibility.
+- Decoder now defaults to `--beam-size 5` for better baseline accuracy; reduce beam size only if latency is more important than quality.
 - Some target apps may block synthetic paste depending on security context.
 
 ## Troubleshooting
@@ -149,7 +180,15 @@ Use this flow when validating or reporting issues during Windows testing:
 - First run may be slower due to model initialization.
 - Re-test a second utterance before reporting latency issues.
 
+### Australian English or finance terms are misheard
+- This is usually a model-quality and vocabulary-bias issue more than a language-code issue; Whisper uses `en`, not a separate `en-AU` mode here.
+- Re-run with `--beam-size 5` if you reduced it.
+- Try `--hotwords "Commonwealth Bank,SMSF,trustee"` for proper nouns and acronyms.
+- Add an `--initial-prompt` describing the topic, for example Australian banking or SMSF account administration.
+- If quality is still weak, test a larger model size before reporting an accent-specific bug.
+
 ## Next hardening steps
 
 - Add tray icon + settings panel.
 - Add richer insertion fallback path (for example UI Automation send-text) beyond clipboard-only mode.
+- Keep documentation aligned with the canonical Windows transition plan as the native app work proceeds.

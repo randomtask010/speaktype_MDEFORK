@@ -1,12 +1,22 @@
 # Release Process
 
-SpeakType releases are **fully automated** with a single command. The script handles everything: version bumping, building, signing, notarization, and uploading.
+SpeakType releases are currently **fully automated for the macOS app only**. The script handles version bumping, building, signing, notarization, and uploading for the existing Xcode-based release flow.
+
+Windows release automation does not exist in this repository yet. The Windows roadmap is:
+
+1. portable Windows build for tester validation
+2. signed Windows installer after packaging stabilizes
+3. optional MSIX work after installer and update workflow maturity
+
+The canonical Windows packaging and migration plan lives in `docs/windows-adaptation/README.md`.
 
 ## Release Criteria
 Use your judgment, but a release is usually warranted when:
 - A user-visible feature or UX improvement lands
 - A bugfix affects multiple users or a core flow
 - Performance or stability improvements are measurable
+
+For the rest of this document, "release" refers to the current macOS release process unless explicitly stated otherwise.
 
 ## Prerequisites
 
@@ -146,3 +156,4 @@ If Xcode build fails:
 - **GitHub Actions workflow is disabled** - all release work happens locally
 - **Notarization typically takes 2-5 minutes** - Apple's servers process the app
 - **The DMG is stapled** - notarization ticket embedded, works offline
+- **Windows packaging is not automated yet** - track packaging direction in `docs/windows-adaptation/README.md`
