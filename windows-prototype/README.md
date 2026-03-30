@@ -99,4 +99,4 @@ python speaktype_windows.py --paste-mode clipboard
 ## Next hardening steps
 
 - Add tray icon + settings panel.
-- Add fallback insertion path when synthetic paste is blocked.
+- Add richer insertion fallback path (for example UI Automation send-text) beyond clipboard-only mode.

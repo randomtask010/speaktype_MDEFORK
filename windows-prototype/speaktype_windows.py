@@ -225,7 +225,9 @@ class SpeakTypeWindowsPrototype:
             try:
                 keyboard.send("ctrl+v")
             except Exception as exc:
-                print(f"Synthetic paste failed ({exc}); copied to clipboard only.")
+                print(
+                    f"Synthetic paste failed ({type(exc).__name__}: {exc}); copied to clipboard only."
+                )
         # Optional confirmation tone/beep.
         try:
             ctypes.windll.user32.MessageBeep(0xFFFFFFFF)
@@ -251,6 +253,13 @@ def _list_input_devices() -> None:
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="SpeakType Windows prototype")
+
+    def non_negative_float(value: str) -> float:
+        parsed = float(value)
+        if parsed < 0:
+            raise argparse.ArgumentTypeError("must be non-negative")
+        return parsed
+
     parser.add_argument("--hotkey", default=DEFAULT_HOTKEY, help="Global hotkey (default: f8)")
     parser.add_argument(
         "--mode",
@@ -288,7 +297,7 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--min-duration",
-        type=float,
+        type=non_negative_float,
         default=DEFAULT_MIN_DURATION_S,
         help="Minimum recording duration in seconds",
     )
@@ -310,7 +319,7 @@ def main() -> None:
         language=language,
         input_device=args.input_device,
         paste_mode=args.paste_mode,
-        min_duration_s=max(0.0, args.min_duration),
+        min_duration_s=args.min_duration,
     )
     app = SpeakTypeWindowsPrototype(config)
     app.run()
