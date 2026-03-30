@@ -41,17 +41,62 @@ Then:
 3. Release `F8`
 4. Transcript is pasted automatically
 
+## Runtime options (for Windows testing)
+
+List input devices:
+
+```powershell
+python speaktype_windows.py --list-devices
+```
+
+Use a specific microphone:
+
+```powershell
+python speaktype_windows.py --input-device 2
+```
+
+Toggle mode instead of hold-to-talk:
+
+```powershell
+python speaktype_windows.py --mode toggle
+```
+
+Language and model overrides:
+
+```powershell
+python speaktype_windows.py --language en --model-size base --compute-type int8
+```
+
+Enable auto language detection:
+
+```powershell
+python speaktype_windows.py --language auto
+```
+
+Clipboard-only fallback (no synthetic paste):
+
+```powershell
+python speaktype_windows.py --paste-mode clipboard
+```
+
+## Suggested Windows validation checklist
+
+- Verify `--list-devices` shows expected microphone devices.
+- Verify default **hold** mode (F8 down/up) records and pastes into Notepad.
+- Verify **toggle** mode starts/stops reliably and transcribes once per stop action.
+- Verify `--input-device` uses the selected microphone.
+- Verify `--paste-mode clipboard` copies transcript even when paste injection is blocked.
+- Verify `--language auto` and fixed language mode both produce expected transcripts.
+
 ## Notes and limitations
 
-- Prototype currently forces `language="en"` for predictable MVP behavior.
-- Uses default microphone device.
+- Default language remains `en`; can now be overridden at runtime.
+- Default microphone device is used unless `--input-device` is provided.
 - No tray UI or settings UI yet.
 - Model defaults to `base` with `int8` compute for broad CPU compatibility.
 - Some target apps may block synthetic paste depending on security context.
 
 ## Next hardening steps
 
-- Add device selection and language selection.
-- Add push-to-talk/toggle modes.
 - Add tray icon + settings panel.
 - Add fallback insertion path when synthetic paste is blocked.
