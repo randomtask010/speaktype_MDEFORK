@@ -168,9 +168,48 @@ A Windows release is considered complete when:
 7. CI builds and tests pass for both macOS and Windows targets.
 8. User documentation includes Windows setup, permissions, troubleshooting, and known limitations.
 
-## 9) Immediate Next Actions (execution backlog)
-1. Approve target Windows shell and transcription backend.
-2. Implement platform abstraction interfaces in current codebase.
-3. Migrate existing macOS services behind adapter layer with no behavior change.
-4. Add a minimal Windows prototype for hotkey + recording + transcription + paste.
-5. Establish Windows CI build and artifact publishing.
+## 9) Adaptation Backlog Status (execution)
+
+Status legend:
+- ✅ Completed
+- 🔄 In progress
+- ⏭️ Next
+- 🧪 User-testing prep
+
+### 9.1 Platform strategy
+1. 🔄 Approve target Windows shell and long-term transcription backend.
+2. ⏭️ Confirm adapter boundaries for hotkey, clipboard/paste, permission, and system integration services.
+
+### 9.2 Current MVP delivery
+1. ✅ Minimal Windows prototype exists for hotkey + recording + transcription + paste.
+2. ✅ Prototype supports hold and toggle modes, device selection, language override/auto, and clipboard-only fallback.
+3. 🔄 Harden insertion behavior and fallback guidance for apps that block synthetic paste.
+
+### 9.3 Core adaptation work
+1. ⏭️ Implement platform abstraction interfaces in current codebase.
+2. ⏭️ Migrate existing macOS services behind adapter layer with no behavior change.
+3. ⏭️ Introduce cross-platform transcription engine contract and Windows implementation path.
+
+### 9.4 Build/release and validation
+1. ⏭️ Establish Windows CI build and artifact publishing.
+2. ⏭️ Add repeatable Windows smoke tests for key workflows (Notepad, browser textarea, Office app).
+3. 🧪 Publish test runbook and issue template for user testing feedback capture.
+
+## 10) Windows User Testing Readiness (post-PR target)
+
+This fork is targeting post-PR Windows user testing of the MVP flow with clear support guidance.
+
+### Ready now
+- Working prototype CLI flow in `windows-prototype/`.
+- Local transcription (faster-whisper), global hotkey capture, clipboard + paste attempt.
+- Validation checklist and runtime options documented.
+
+### Must be true before test invitation
+1. A single canonical support guide exists and matches current CLI/runtime flags.
+2. Known limitations are explicit (admin requirements, app-specific paste blocking, no tray UI yet).
+3. Testers can collect and share reproducible bug reports (input device, mode, target app, error text).
+4. Backlog priorities for blocking issues are clearly marked.
+
+### Go/No-Go gate for user testing
+- **Go**: setup succeeds on clean Windows 10/11 machine, hold/toggle flows transcribe, clipboard fallback works.
+- **No-Go**: cannot reliably complete basic record/transcribe/copy flow in common apps.

@@ -5,7 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
 ## [Unreleased]
-- 
+- Updated project messaging to reflect this fork’s Windows adaptation focus alongside macOS.
+- Expanded Windows adaptation documentation with explicit backlog status markers (completed/in-progress/next/testing prep).
+- Added Windows user-testing readiness criteria and go/no-go gate to adaptation docs.
+- Expanded Windows prototype support documentation with:
+  - user-testing runbook
+  - troubleshooting guidance
+  - required bug report fields for reproducible tester feedback.
 
 ## [1.0.29] - 2026-03-24
 - 
