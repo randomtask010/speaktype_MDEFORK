@@ -9,6 +9,7 @@ Workable MVP behavior:
 
 from __future__ import annotations
 
+import argparse
 import ctypes
 import queue
 import tempfile
@@ -30,9 +31,22 @@ from scipy.signal import resample_poly
 SAMPLE_RATE = 44_100
 TARGET_SAMPLE_RATE = 16_000
 CHANNELS = 1
-HOTKEY = "f8"
-MODEL_SIZE = "base"
-MODEL_COMPUTE_TYPE = "int8"
+DEFAULT_HOTKEY = "f8"
+DEFAULT_MODEL_SIZE = "base"
+DEFAULT_MODEL_COMPUTE_TYPE = "int8"
+DEFAULT_MIN_DURATION_S = 0.2
+
+
+@dataclass(frozen=True)
+class AppConfig:
+    hotkey: str = DEFAULT_HOTKEY
+    mode: str = "hold"
+    model_size: str = DEFAULT_MODEL_SIZE
+    model_compute_type: str = DEFAULT_MODEL_COMPUTE_TYPE
+    language: Optional[str] = "en"
+    input_device: Optional[int] = None
+    paste_mode: str = "ctrlv"
+    min_duration_s: float = DEFAULT_MIN_DURATION_S
 
 
 @dataclass
@@ -57,28 +71,46 @@ class RecordingBuffer:
 
 
 class SpeakTypeWindowsPrototype:
-    def __init__(self) -> None:
+    def __init__(self, config: AppConfig) -> None:
+        self._config = config
         self._recording = False
         self._recording_lock = threading.Lock()
         self._stream: Optional[sd.InputStream] = None
         self._buffer = RecordingBuffer()
         self._events: "queue.Queue[str]" = queue.Queue()
-        self._model = WhisperModel(MODEL_SIZE, compute_type=MODEL_COMPUTE_TYPE)
+        self._model = WhisperModel(
+            self._config.model_size,
+            compute_type=self._config.model_compute_type,
+        )
         self._last_press_time = 0.0
 
     def run(self) -> None:
         print("SpeakType Windows prototype is running.")
-        print(f"Hold {HOTKEY.upper()} to record. Release to transcribe and paste.")
+        if self._config.mode == "toggle":
+            print(
+                f"Press {self._config.hotkey.upper()} to start recording, press again to stop."
+            )
+        else:
+            print(
+                f"Hold {self._config.hotkey.upper()} to record. Release to transcribe and paste."
+            )
         print("Press CTRL+C to exit.")
 
-        keyboard.on_press_key(HOTKEY, lambda _: self._events.put("press"))
-        keyboard.on_release_key(HOTKEY, lambda _: self._events.put("release"))
+        keyboard.on_press_key(self._config.hotkey, lambda _: self._events.put("press"))
+        if self._config.mode == "hold":
+            keyboard.on_release_key(self._config.hotkey, lambda _: self._events.put("release"))
 
         try:
             while True:
                 event = self._events.get()
                 if event == "press":
-                    self._start_recording()
+                    if self._config.mode == "toggle":
+                        if self._recording:
+                            self._stop_recording_and_transcribe()
+                        else:
+                            self._start_recording()
+                    else:
+                        self._start_recording()
                 elif event == "release":
                     self._stop_recording_and_transcribe()
         except KeyboardInterrupt:
@@ -114,6 +146,7 @@ class SpeakTypeWindowsPrototype:
                 channels=CHANNELS,
                 samplerate=SAMPLE_RATE,
                 dtype="float32",
+                device=self._config.input_device,
                 callback=self._audio_callback,
             )
             self._stream.start()
@@ -138,7 +171,7 @@ class SpeakTypeWindowsPrototype:
 
         # Ignore accidental micro-taps.
         duration_s = audio.shape[0] / SAMPLE_RATE
-        if duration_s < 0.2:
+        if duration_s < self._config.min_duration_s:
             print("Recording too short, skipping.")
             return
 
@@ -164,7 +197,7 @@ class SpeakTypeWindowsPrototype:
                 str(wav_path),
                 beam_size=1,
                 vad_filter=True,
-                language="en",
+                language=self._config.language,
                 task="transcribe",
             )
             text = " ".join(segment.text.strip() for segment in segments).strip()
@@ -185,11 +218,16 @@ class SpeakTypeWindowsPrototype:
             wf.setframerate(samplerate)
             wf.writeframes(pcm16.tobytes())
 
-    @staticmethod
-    def _copy_and_paste(text: str) -> None:
+    def _copy_and_paste(self, text: str) -> None:
         pyperclip.copy(text)
-        # Simulate Ctrl+V in foreground application.
-        keyboard.send("ctrl+v")
+        if self._config.paste_mode == "ctrlv":
+            # Simulate Ctrl+V in foreground application.
+            try:
+                keyboard.send("ctrl+v")
+            except Exception as exc:
+                print(
+                    f"Synthetic paste failed ({type(exc).__name__}: {exc}); copied to clipboard only."
+                )
         # Optional confirmation tone/beep.
         try:
             ctypes.windll.user32.MessageBeep(0xFFFFFFFF)
@@ -197,8 +235,93 @@ class SpeakTypeWindowsPrototype:
             pass
 
 
+def _list_input_devices() -> None:
+    try:
+        default_input, _default_output = sd.default.device
+    except Exception:
+        default_input = None
+
+    devices = sd.query_devices()
+    print("Available input devices:")
+    for idx, device in enumerate(devices):
+        max_input_channels = int(device.get("max_input_channels", 0))
+        if max_input_channels <= 0:
+            continue
+        marker = " (default)" if default_input == idx else ""
+        print(f"[{idx}] {device['name']} - channels={max_input_channels}{marker}")
+
+
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="SpeakType Windows prototype")
+
+    def non_negative_float(value: str) -> float:
+        parsed = float(value)
+        if parsed < 0:
+            raise argparse.ArgumentTypeError("must be non-negative")
+        return parsed
+
+    parser.add_argument("--hotkey", default=DEFAULT_HOTKEY, help="Global hotkey (default: f8)")
+    parser.add_argument(
+        "--mode",
+        choices=("hold", "toggle"),
+        default="hold",
+        help="Recording mode: hold key or toggle with key press",
+    )
+    parser.add_argument("--model-size", default=DEFAULT_MODEL_SIZE, help="Whisper model size")
+    parser.add_argument(
+        "--compute-type",
+        default=DEFAULT_MODEL_COMPUTE_TYPE,
+        help="Whisper compute type (e.g., int8, float16)",
+    )
+    parser.add_argument(
+        "--language",
+        default="en",
+        help="Language code (use 'auto' for auto-detection)",
+    )
+    parser.add_argument(
+        "--input-device",
+        type=int,
+        default=None,
+        help="sounddevice input device index",
+    )
+    parser.add_argument(
+        "--list-devices",
+        action="store_true",
+        help="List available input devices and exit",
+    )
+    parser.add_argument(
+        "--paste-mode",
+        choices=("ctrlv", "clipboard"),
+        default="ctrlv",
+        help="ctrlv: copy+paste, clipboard: copy only",
+    )
+    parser.add_argument(
+        "--min-duration",
+        type=non_negative_float,
+        default=DEFAULT_MIN_DURATION_S,
+        help="Minimum recording duration in seconds",
+    )
+    return parser.parse_args()
+
+
 def main() -> None:
-    app = SpeakTypeWindowsPrototype()
+    args = _parse_args()
+    if args.list_devices:
+        _list_input_devices()
+        return
+
+    language: Optional[str] = None if args.language == "auto" else args.language
+    config = AppConfig(
+        hotkey=args.hotkey,
+        mode=args.mode,
+        model_size=args.model_size,
+        model_compute_type=args.compute_type,
+        language=language,
+        input_device=args.input_device,
+        paste_mode=args.paste_mode,
+        min_duration_s=args.min_duration,
+    )
+    app = SpeakTypeWindowsPrototype(config)
     app.run()
 
 
